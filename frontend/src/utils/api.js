@@ -1,11 +1,13 @@
-import axios from 'axios';
+
+import axios from "axios";
 
 const api = axios.create({
-  baseURL: ' https://render.com/docs/web-services#port-binding', 
-  withCredentials: true, // CRUCIAL: Tells the browser to send cookies along with requests
+  baseURL: import.meta.env.VITE_API_URL,
+  withCredentials: true,
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
 });
+
 
 export default api;
