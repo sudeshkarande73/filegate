@@ -5,16 +5,20 @@ const sendEmail = async (to, subject, text, html) => {
     console.log("EMAIL_USER:", process.env.EMAIL_USER);
     console.log("EMAIL_PASS exists:", !!process.env.EMAIL_PASS);
 
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    });
+   console.log("Creating transporter");
 
-    await transporter.verify();
-    console.log("✅ SMTP connection successful");
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+});
+
+console.log("Transporter created");
+
+await transporter.verify();
+console.log("SMTP verified");
 
     const mailOptions = {
       from: `"FileGate Security" <${process.env.EMAIL_USER}>`,
@@ -25,6 +29,8 @@ const sendEmail = async (to, subject, text, html) => {
     };
 
     await transporter.sendMail(mailOptions);
+    console.log("Mail sent");
+
 
     console.log(`✅ Email sent successfully to ${to}`);
   } catch (error) {
