@@ -1,60 +1,26 @@
- const dns = require("dns");
-const nodemailer = require("nodemailer");
+const { Resend } = require("resend");
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 const sendEmail = async (to, subject, text, html) => {
   try {
-    console.log("====================================");
-    console.log("Starting email service");
+    console.log("Sending email using Resend...");
 
-    console.log("EMAIL_USER:", process.env.EMAIL_USER);
-    console.log("EMAIL_PASS exists:", !!process.env.EMAIL_PASS);
-
-    console.log("Creating transporter...");
-
- 
-const transporter = nodemailer.createTransport({
-    host: "smtp.gmail.com",
-    port: 465,
-    secure: true,
-    family: 4,   // Force IPv4
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
-    },
-    tls: {
-        rejectUnauthorized: false
-    }
-});
-
-    console.log("Transporter created");
-
-    console.log("Starting SMTP verify...");
-    await transporter.verify();
-    console.log("SMTP verify successful");
-
-    const mailOptions = {
-      from: `"FileGate Security" <${process.env.EMAIL_USER}>`,
+    const response = await resend.emails.send({
+      from: "FileGate <onboarding@resend.dev>",
       to,
       subject,
       text,
       html,
-    };
+    });
 
-    console.log("Starting sendMail...");
-    const info = await transporter.sendMail(mailOptions);
+    console.log("Email sent successfully");
+    console.log(response);
 
-    console.log("Mail sent successfully");
-    console.log(info);
+    return response;
 
-    console.log("====================================");
   } catch (error) {
-    console.error("========= EMAIL ERROR =========");
-    console.error(error);
-    console.error("Code:", error.code);
-    console.error("Command:", error.command);
-    console.error("Response:", error.response);
-    console.error("===============================");
-
+    console.error("Resend Error:", error);
     throw error;
   }
 };
