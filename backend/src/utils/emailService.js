@@ -1,15 +1,12 @@
-const SibApiV3Sdk = require("sib-api-v3-sdk");
+const { BrevoClient } = require("@getbrevo/brevo");
 
-const client = SibApiV3Sdk.ApiClient.instance;
-
-client.authentications["api-key"].apiKey =
-  process.env.BREVO_API_KEY;
-
-const apiInstance = new SibApiV3Sdk.TransactionalEmailsApi();
+const brevo = new BrevoClient({
+  apiKey: process.env.BREVO_API_KEY,
+});
 
 const sendEmail = async (to, subject, text, html) => {
   try {
-    const result = await apiInstance.sendTransacEmail({
+    const result = await brevo.transactionalEmails.sendTransacEmail({
       sender: {
         name: "FileGate Security",
         email: "vaulteshare.noreply@gmail.com",
@@ -26,9 +23,12 @@ const sendEmail = async (to, subject, text, html) => {
       htmlContent: html,
     });
 
-    console.log("Email sent");
+    console.log("Email sent successfully");
     console.log(result);
+
+    return result;
   } catch (err) {
+    console.error("Brevo Error:");
     console.error(err);
     throw err;
   }
