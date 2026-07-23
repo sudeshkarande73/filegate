@@ -1,3 +1,4 @@
+ const dns = require("dns");
 const nodemailer = require("nodemailer");
 
 const sendEmail = async (to, subject, text, html) => {
@@ -10,18 +11,20 @@ const sendEmail = async (to, subject, text, html) => {
 
     console.log("Creating transporter...");
 
-    const transporter = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 465,
-      secure: true,
-      auth: {
+ 
+const transporter = nodemailer.createTransport({
+    host: "smtp.gmail.com",
+    port: 465,
+    secure: true,
+    family: 4,   // Force IPv4
+    auth: {
         user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-      connectionTimeout: 15000,
-      greetingTimeout: 15000,
-      socketTimeout: 15000,
-    });
+        pass: process.env.EMAIL_PASS
+    },
+    tls: {
+        rejectUnauthorized: false
+    }
+});
 
     console.log("Transporter created");
 
