@@ -2,23 +2,32 @@ const nodemailer = require("nodemailer");
 
 const sendEmail = async (to, subject, text, html) => {
   try {
+    console.log("====================================");
+    console.log("Starting email service");
+
     console.log("EMAIL_USER:", process.env.EMAIL_USER);
     console.log("EMAIL_PASS exists:", !!process.env.EMAIL_PASS);
 
-   console.log("Creating transporter");
+    console.log("Creating transporter...");
 
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-});
+    const transporter = nodemailer.createTransport({
+      host: "smtp.gmail.com",
+      port: 465,
+      secure: true,
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 15000,
+    });
 
-console.log("Transporter created");
+    console.log("Transporter created");
 
-await transporter.verify();
-console.log("SMTP verified");
+    console.log("Starting SMTP verify...");
+    await transporter.verify();
+    console.log("SMTP verify successful");
 
     const mailOptions = {
       from: `"FileGate Security" <${process.env.EMAIL_USER}>`,
@@ -28,14 +37,22 @@ console.log("SMTP verified");
       html,
     };
 
-    await transporter.sendMail(mailOptions);
-    console.log("Mail sent");
+    console.log("Starting sendMail...");
+    const info = await transporter.sendMail(mailOptions);
 
+    console.log("Mail sent successfully");
+    console.log(info);
 
-    console.log(`✅ Email sent successfully to ${to}`);
+    console.log("====================================");
   } catch (error) {
-    console.error("❌ Email sending failed:", error);
-    throw error; // <-- Better than creating a new Error
+    console.error("========= EMAIL ERROR =========");
+    console.error(error);
+    console.error("Code:", error.code);
+    console.error("Command:", error.command);
+    console.error("Response:", error.response);
+    console.error("===============================");
+
+    throw error;
   }
 };
 
