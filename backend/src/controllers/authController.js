@@ -53,44 +53,59 @@ exports.loginRequest = async (req, res) => {
 // Flow 2: Sign Up Request
 exports.signupRequest = async (req, res) => {
   try {
+    console.log("1. Request received");
+
     const { name, email, phone } = req.body;
     const lowerEmail = email.toLowerCase();
+    console.log("2. Data extracted");
 
-    const existingUser = await User.findOne({ $or: [{ email: lowerEmail }, { phone }] });
+    const existingUser = await User.findOne({
+      $or: [{ email: lowerEmail }, { phone }]
+    });
+
+    console.log("3. User lookup finished");
+
     if (existingUser) {
-      return res.status(409).json({ error: 'DUPLICATE_USER', message: 'Email or Phone number is already registered.' });
+      console.log("4. Duplicate user");
+      return res.status(409).json({
+        error: "DUPLICATE_USER",
+        message: "Email or Phone number is already registered."
+      });
     }
 
     const otp = generateOTP();
+    console.log("5. OTP generated");
+
     await Otp.findOneAndUpdate(
       { email: lowerEmail },
       { otp, tempData: { name, phone, isSignup: true } },
-      { upsert: true, new: true }
+      {
+        upsert: true,
+        returnDocument: "after"
+      }
     );
 
-    // 🚀 THE FIX: Using your email service
+    console.log("6. OTP saved");
+
     const subject = "Verify your FileGate Identity";
-    const text = `Your identity verification token is: ${otp}\n\nThis token will expire in 5 minutes.`;
-    const html = `
-      <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; border: 1px solid #ddd; padding: 20px; border-radius: 8px;">
-        <h2 style="color: #0f172a;">FileGate Clearance</h2>
-        <p>You requested a new cryptographic identity. Your verification token is:</p>
-        <div style="background-color: #f8fafc; padding: 15px; text-align: center; font-size: 24px; font-weight: bold; letter-spacing: 5px; border-radius: 4px; margin: 20px 0;">
-          ${otp}
-        </div>
-        <p style="color: #64748b; font-size: 12px;">This token expires in 5 minutes.</p>
-      </div>
-    `;
+    const text = `Your OTP is ${otp}`;
+    const html = `<h1>${otp}</h1>`;
+
+    console.log("7. About to send email");
 
     await sendEmail(lowerEmail, subject, text, html);
 
-    res.status(200).json({ message: 'Verification OTP sent to your email.' });
+    console.log("8. Email sent");
+
+    res.status(200).json({
+      message: "Verification OTP sent"
+    });
+
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Signup request failed. Check email server configuration.' });
+    console.error("SIGNUP ERROR:", error);
+    res.status(500).json(error.message);
   }
 };
-
 // Flow 3: Verify OTP & Issue JWT 
 exports.verifyOtp = async (req, res) => {
   try {
