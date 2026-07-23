@@ -6,22 +6,18 @@ const brevo = new BrevoClient({
 
 const sendEmail = async (to, subject, text, html) => {
   try {
-    const result = await brevo.transactionalEmails.sendTransacEmail({
-      sender: {
-        name: "FileGate Security",
-        email: "vaulteshare.noreply@gmail.com",
-      },
+   const result = await brevo.transactionalEmails.sendTransacEmail({
+  sender: {
+    name: "FileGate Security",
+    email: "vaulteshare.noreply@gmail.com",
+  },
+  to: [{ email: to }],
+  subject,
+  textContent: text,
+  htmlContent: html,
+});
 
-      to: [
-        {
-          email: to,
-        },
-      ],
-
-      subject,
-      textContent: text,
-      htmlContent: html,
-    });
+console.dir(result, { depth: null });
 
     console.log("Email sent successfully");
     console.log(result);
