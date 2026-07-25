@@ -15,9 +15,8 @@ const userSchema = new mongoose.Schema({
   },
   phone: { 
     type: String, 
-    required: true, 
-    unique: true,
-    trim: true
+    required: false
+    
   },
   // Active session tracking for concurrency control
   activeSessionToken: {
