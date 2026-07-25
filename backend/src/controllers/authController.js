@@ -1,7 +1,10 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const admin = require('../config/firebaseAdmin');
+// Remove: const admin = require('../config/firebaseAdmin');
+// Add these:
+require('../config/firebaseAdmin'); // This runs the initialization
+const { getAuth } = require('firebase-admin/auth'); // Modern modular auth
 
 exports.firebaseLogin = async (req, res) => {
   try {
@@ -12,7 +15,11 @@ exports.firebaseLogin = async (req, res) => {
     }
 
     // 1. Verify the Firebase Token
-    const decodedToken = await admin.auth().verifyIdToken(idToken);
+   // OLD WAY (Delete this):
+    // const decodedToken = await admin.auth().verifyIdToken(idToken);
+
+    // NEW WAY (Add this):
+    const decodedToken = await getAuth().verifyIdToken(idToken);
     const { email, uid, email_verified } = decodedToken;
 
     // 2. Enforce Email Verification strictly on the backend
