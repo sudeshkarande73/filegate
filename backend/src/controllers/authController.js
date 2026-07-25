@@ -1,146 +1,48 @@
 const User = require('../models/User');
-const Otp = require('../models/Otp');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-// 🚀 NEW: Importing your dedicated utility
-const sendEmail = require('../utils/emailService'); 
+const admin = require('../config/firebaseAdmin');
 
-// Helper to generate a 6-digit OTP
-const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
-
-// Flow 1: Login Request
-exports.loginRequest = async (req, res) => {
+exports.firebaseLogin = async (req, res) => {
   try {
-    const { email } = req.body;
-    const lowerEmail = email.toLowerCase();
-    
-    const user = await User.findOne({ email: lowerEmail });
+    const { idToken, name } = req.body;
+
+    if (!idToken) {
+      return res.status(401).json({ error: 'No authentication token provided.' });
+    }
+
+    // 1. Verify the Firebase Token
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    const { email, uid, email_verified } = decodedToken;
+
+    // 2. Enforce Email Verification strictly on the backend
+    if (!email_verified) {
+      return res.status(403).json({ error: 'EMAIL_NOT_VERIFIED', message: 'Please verify your email address.' });
+    }
+
+    // 3. Sync with MongoDB (Create if it doesn't exist)
+    let user = await User.findOne({ email });
     
     if (!user) {
-      return res.status(404).json({ error: 'USER_NOT_FOUND', message: 'Account not found. Please sign up.' });
-    }
-
-    const otp = generateOTP();
-    await Otp.findOneAndUpdate(
-      { email: lowerEmail },
-      { otp, tempData: { isSignup: false } },
-      { upsert: true, new: true } 
-    );
-
-    // 🚀 THE FIX: Using your email service
-    const subject = "Your FileGate Authentication Token";
-    const text = `Your secure login token is: ${otp}\n\nThis token will expire in 5 minutes. Do not share it with anyone.`;
-    const html = `
-      <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; border: 1px solid #ddd; padding: 20px; border-radius: 8px;">
-        <h2 style="color: #0f172a;">FileGate Security</h2>
-        <p>You requested to log in. Your secure authentication token is:</p>
-        <div style="background-color: #f8fafc; padding: 15px; text-align: center; font-size: 24px; font-weight: bold; letter-spacing: 5px; border-radius: 4px; margin: 20px 0;">
-          ${otp}
-        </div>
-        <p style="color: #ef4444; font-size: 12px;">This token expires in 5 minutes. Do not share this with anyone.</p>
-      </div>
-    `;
-
-    await sendEmail(lowerEmail, subject, text, html);
-
-    res.status(200).json({ message: 'OTP sent to your email.' });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Login request failed. Check email server configuration.' });
-  }
-};
-
-// Flow 2: Sign Up Request
-exports.signupRequest = async (req, res) => {
-  try {
-    console.log("1. Request received");
-
-    const { name, email, phone } = req.body;
-    const lowerEmail = email.toLowerCase();
-    console.log("2. Data extracted");
-
-    const existingUser = await User.findOne({
-      $or: [{ email: lowerEmail }, { phone }]
-    });
-
-    console.log("3. User lookup finished");
-
-    if (existingUser) {
-      console.log("4. Duplicate user");
-      return res.status(409).json({
-        error: "DUPLICATE_USER",
-        message: "Email or Phone number is already registered."
-      });
-    }
-
-    const otp = generateOTP();
-    console.log("5. OTP generated");
-
-    await Otp.findOneAndUpdate(
-      { email: lowerEmail },
-      { otp, tempData: { name, phone, isSignup: true } },
-      {
-        upsert: true,
-        returnDocument: "after"
-      }
-    );
-
-    console.log("6. OTP saved");
-
-    const subject = "Verify your FileGate Identity";
-    const text = `Your OTP is ${otp}`;
-    const html = `<h1>${otp}</h1>`;
-
-    console.log("7. About to send email");
-
-    await sendEmail(lowerEmail, subject, text, html);
-
-    console.log("8. Email sent");
-
-    res.status(200).json({
-      message: "Verification OTP sent"
-    });
-
-  } catch (error) {
-    console.error("SIGNUP ERROR:", error);
-    res.status(500).json(error.message);
-  }
-};
-// Flow 3: Verify OTP & Issue JWT 
-exports.verifyOtp = async (req, res) => {
-  try {
-    const { email, otp } = req.body;
-    const lowerEmail = email.toLowerCase();
-
-    const otpRecord = await Otp.findOne({ email: lowerEmail });
-    if (!otpRecord || otpRecord.otp !== otp) {
-      return res.status(401).json({ error: 'Invalid or expired OTP.' });
-    }
-
-    let user;
-    if (otpRecord.tempData.isSignup) {
       user = await User.create({
-        name: otpRecord.tempData.name,
-        email: lowerEmail,
-        phone: otpRecord.tempData.phone
+        email,
+        name: name || email.split('@')[0], // Use provided name, or fallback to email prefix
+        firebaseUid: uid
       });
-    } else {
-      user = await User.findOne({ email: lowerEmail });
     }
 
+    // 4. Concurrency Handshake (Invalidate old sessions)
     const sessionToken = crypto.randomBytes(16).toString('hex');
-    // Using updateOne to bypass any legacy validation issues
-    await User.updateOne(
-      { _id: user._id }, 
-      { $set: { activeSessionToken: sessionToken } }
-    );
+    await User.updateOne({ _id: user._id }, { $set: { activeSessionToken: sessionToken } });
 
+    // 5. Generate your custom FileGate JWT
     const token = jwt.sign(
       { id: user._id, sessionToken },
       process.env.JWT_SECRET,
       { expiresIn: '1d' }
     );
 
+    // 6. Set the HTTP-Only Cookie
     const isProduction = process.env.NODE_ENV === 'production';
     res.cookie('token', token, { 
       httpOnly: true, 
@@ -149,28 +51,15 @@ exports.verifyOtp = async (req, res) => {
       maxAge: 24 * 60 * 60 * 1000 
     });
 
-    await Otp.deleteOne({ email: lowerEmail });
-
     res.status(200).json({ 
       message: 'Authentication successful', 
       user: { id: user._id, email: user.email, name: user.name } 
     });
 
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Verification protocol failed.' });
+    console.error('[FIREBASE AUTH ERROR]:', error);
+    res.status(401).json({ error: 'Invalid or expired cryptographic token.' });
   }
-};
-// Flow 4: Session Persistence (Check if cookie is still valid on refresh)
-exports.checkAuthStatus = (req, res) => {
-  // If the request makes it past the requireAuth middleware, the user is authenticated.
-  res.status(200).json({ 
-    user: { 
-      id: req.user._id, 
-      email: req.user.email, 
-      name: req.user.name 
-    } 
-  });
 };
 
 exports.logout = (req, res) => {
@@ -181,4 +70,11 @@ exports.logout = (req, res) => {
     sameSite: isProduction ? 'none' : 'lax',
   });
   res.status(200).json({ message: 'Disconnected.' });
+};
+
+// Required for Auto-Restore on Page Refresh
+exports.checkAuthStatus = (req, res) => {
+  res.status(200).json({ 
+    user: { id: req.user._id, email: req.user.email, name: req.user.name } 
+  });
 };
