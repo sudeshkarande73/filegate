@@ -1,31 +1,65 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import api from '../utils/api';
+import { auth } from '../config/firebase';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [isLoading, setIsLoading] = useState(true); // 🚀 NEW: Block rendering until checked
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const checkStatus = async () => {
+    // 1. Check Backend first (for HTTP-only cookie persistence)
+    const verifyBackendSession = async () => {
       try {
-        // Ask the backend if the secure httpOnly cookie is still valid
         const response = await api.get('/auth/status');
         setUser(response.data.user);
       } catch (error) {
-        // If 401 Unauthorized (No cookie or expired), clear the user
         setUser(null);
       } finally {
-        // Unblock the UI regardless of success or failure
         setIsLoading(false);
       }
     };
 
-    checkStatus();
-  }, []);
+    // 2. Firebase Observer
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        if (!firebaseUser.emailVerified) {
+          // Force logout from Firebase if email is not verified to prevent ghost sessions
+          await signOut(auth);
+          return;
+        }
+        
+        // If Firebase is valid but backend user state is missing, sync them
+        if (!user) {
+           try {
+             const idToken = await firebaseUser.getIdToken(true);
+             const response = await api.post('/auth/firebase-login', { idToken });
+             setUser(response.data.user);
+           } catch (err) {
+             console.error("Backend sync failed:", err);
+             await signOut(auth);
+           }
+        }
+      }
+    });
 
-  // Show a blank screen (or a cool loading spinner) while verifying the cookie
+    verifyBackendSession();
+    return () => unsubscribe();
+  }, [user]);
+
+  const logout = async () => {
+    setIsLoading(true);
+    try {
+      await signOut(auth); // Clear Firebase
+      await api.post('/auth/logout'); // Clear Backend Cookie
+    } finally {
+      setUser(null);
+      setIsLoading(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#0c1324] flex flex-col items-center justify-center text-[#45dfa4]">
@@ -36,7 +70,7 @@ export const AuthProvider = ({ children }) => {
   }
 
   return (
-    <AuthContext.Provider value={{ user, setUser }}>
+    <AuthContext.Provider value={{ user, setUser, logout }}>
       {children}
     </AuthContext.Provider>
   );

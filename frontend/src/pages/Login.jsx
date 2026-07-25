@@ -1,166 +1,133 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
+import { 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword, 
+  sendEmailVerification, 
+  sendPasswordResetEmail,
+  signOut
+} from 'firebase/auth';
+import { auth } from '../config/firebase';
 import api from '../utils/api';
+import { useAuth } from '../context/AuthContext';
 
-const Auth = () => {
-  const navigate = useNavigate();
+const Login = () => {
   const { setUser } = useAuth();
+  const [mode, setMode] = useState('login'); // 'login', 'signup', 'forgot'
   
-  // State Machine: 'login' | 'signup' | 'otp'
-  const [view, setView] = useState('login'); 
-  
-  // Form Data
-  const [email, setEmail] = useState('');
   const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   
-  // UI States
-  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [msg, setMsg] = useState('');
+  const [message, setMessage] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
 
-  const handleLoginRequest = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    setIsLoading(true);
-    setError(''); setMsg('');
+    setError('');
+    setMessage('');
+    setIsProcessing(true);
 
     try {
-      const response = await api.post('/auth/login-request', { email });
-      setMsg(response.data.message);
-      setView('otp'); // Move to verify phase
-    } catch (err) {
-      if (err.response?.data?.error === 'USER_NOT_FOUND') {
-        // FLOWCHART LOGIC: Redirect to Sign Up if user does not exist
-        setError('Account not found. Redirecting to Secure Sign Up...');
-        setTimeout(() => {
-          setError('');
-          setView('signup');
-        }, 2000);
-      } else {
-        setError(err.response?.data?.error || 'Connection failed.');
+      if (mode === 'signup') {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        await sendEmailVerification(userCredential.user);
+        await signOut(auth); // Immediately sign them out until they verify
+        
+        setMessage('Verification email sent. Please verify your email before logging in.');
+        setMode('login');
+      } 
+      
+      else if (mode === 'login') {
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        
+        if (!userCredential.user.emailVerified) {
+          await signOut(auth);
+          throw new Error("Please verify your email before logging in.");
+        }
+
+        // Generate ID Token and pass to backend to set JWT cookie
+        const idToken = await userCredential.user.getIdToken(true);
+        const response = await api.post('/auth/firebase-login', { idToken, name });
+        setUser(response.data.user);
+      } 
+      
+      else if (mode === 'forgot') {
+        await sendPasswordResetEmail(auth, email);
+        setMessage('Password reset email sent. Check your inbox.');
+        setMode('login');
       }
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSignupRequest = async (e) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setError(''); setMsg('');
-
-    try {
-      const response = await api.post('/auth/signup-request', { name, email, phone });
-      setMsg(response.data.message);
-      setView('otp'); // Move to verify phase
     } catch (err) {
-      // FLOWCHART LOGIC: Catch Duplicate Email/Phone
-      setError(err.response?.data?.message || 'Sign up failed.');
+      console.error(err);
+      // Clean up Firebase error messages for the user
+      const errMsg = err.message.replace('Firebase:', '').trim();
+      setError(errMsg);
     } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleVerifyOtp = async (e) => {
-    e.preventDefault();
-    setIsLoading(true);
-    setError(''); setMsg('');
-
-    try {
-      // FLOWCHART LOGIC: Verify OTP -> Create Account / Generate JWT -> Redirect
-      const response = await api.post('/auth/verify-otp', { email, otp });
-      setUser(response.data.user);
-      navigate('/dashboard'); 
-    } catch (err) {
-      setError(err.response?.data?.error || 'Invalid Identity Token.');
-    } finally {
-      setIsLoading(false);
+      setIsProcessing(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-[#0c1324] flex items-center justify-center p-4 circuit-pattern">
-      <div className="bg-[#0f172a] border border-[#1e293b] p-8 rounded-2xl shadow-[0_0_50px_rgba(69,223,164,0.05)] w-full max-w-md relative overflow-hidden">
+    <div className="min-h-screen bg-[#0c1324] flex items-center justify-center p-4 circuit-pattern text-[#dce2fa]">
+      <div className="bg-[#0f172a] border border-[#1e293b] rounded-xl p-8 max-w-md w-full shadow-2xl relative overflow-hidden">
+        <div className="absolute top-0 left-0 w-full h-1 bg-[#45dfa4]"></div>
         
-        {/* Accent Bar */}
-        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-[#45dfa4] to-[#10b981]"></div>
-
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 mx-auto bg-[#141b2c] rounded-full border border-[#1e293b] flex items-center justify-center mb-4 shadow-lg">
-            <img src="/fg-logo.png" alt="Logo" className="w-10 h-10 object-contain" />
+        <div className="flex flex-col items-center mb-8">
+          <div className="w-16 h-16 mb-4 p-2 bg-[#141b2c] rounded-full border border-[#1e293b] flex items-center justify-center shadow-[0_0_15px_rgba(69,223,164,0.1)]">
+            <img src="/fg-logo.png" alt="FileGate Logo" className="w-full h-full object-contain" />
           </div>
-          <h1 className="text-2xl font-bold text-white tracking-tight">FileGate Security</h1>
-          <p className="text-xs text-[#94a3b8] uppercase tracking-widest mt-2">Zero-Trust Authentication</p>
+          <h2 className="text-2xl font-bold text-white tracking-tight">FileGate Security</h2>
+          <p className="text-[10px] font-mono text-[#45dfa4] tracking-widest uppercase mt-1">Zero-Trust Authentication</p>
         </div>
 
-        {error && <div className="bg-[#93000a]/30 border border-[#ffb4ab]/30 text-[#ffb4ab] text-sm p-3 rounded-lg mb-4 text-center">{error}</div>}
-        {msg && <div className="bg-[#00bd85]/20 border border-[#45dfa4]/30 text-[#45dfa4] text-sm p-3 rounded-lg mb-4 text-center">{msg}</div>}
+        {error && <div className="bg-[#93000a]/30 border border-[#ffb4ab]/30 p-3 rounded text-[#ffb4ab] text-sm mb-4 text-center">{error}</div>}
+        {message && <div className="bg-[#00bd85]/20 border border-[#45dfa4]/30 p-3 rounded text-[#45dfa4] text-sm mb-4 text-center">{message}</div>}
 
-        {/* STATE 1: LOGIN */}
-        {view === 'login' && (
-          <form onSubmit={handleLoginRequest} className="space-y-4">
-            <div>
-              <label className="block text-xs text-[#d3c5ac] uppercase tracking-wider font-semibold mb-2">Clearance Email</label>
-              <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-[#141b2c] border border-[#1e293b] rounded-lg px-4 py-3 text-sm text-white focus:border-[#45dfa4] focus:outline-none transition-colors" placeholder="agent@company.com" />
-            </div>
-            <button type="submit" disabled={isLoading} className="w-full bg-[#45dfa4]/10 hover:bg-[#45dfa4]/20 border border-[#45dfa4]/50 text-[#45dfa4] py-3 rounded-lg font-bold transition-all shadow-[0_0_15px_rgba(69,223,164,0.1)]">
-              {isLoading ? 'Verifying Identity...' : 'Initiate Secure Login'}
-            </button>
-            <p className="text-center text-sm text-[#94a3b8] mt-4">
-              Unrecognized identity? <button type="button" onClick={() => setView('signup')} className="text-[#fbbf24] hover:underline font-semibold">Request Clearance (Sign Up)</button>
-            </p>
-          </form>
-        )}
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {mode === 'signup' && (
+            <input 
+              type="text" placeholder="Full Name" required 
+              value={name} onChange={(e) => setName(e.target.value)}
+              className="w-full bg-[#141b2c] border border-[#1e293b] rounded-lg px-4 py-3 text-sm text-white focus:border-[#45dfa4] focus:outline-none" 
+            />
+          )}
+          
+          <input 
+            type="email" placeholder="Corporate Email Address" required 
+            value={email} onChange={(e) => setEmail(e.target.value)}
+            className="w-full bg-[#141b2c] border border-[#1e293b] rounded-lg px-4 py-3 text-sm text-white focus:border-[#45dfa4] focus:outline-none" 
+          />
+          
+          {mode !== 'forgot' && (
+            <input 
+              type="password" placeholder="Cryptographic Passphrase" required minLength="6"
+              value={password} onChange={(e) => setPassword(e.target.value)}
+              className="w-full bg-[#141b2c] border border-[#1e293b] rounded-lg px-4 py-3 text-sm text-white focus:border-[#45dfa4] focus:outline-none" 
+            />
+          )}
 
-        {/* STATE 2: SIGN UP */}
-        {view === 'signup' && (
-          <form onSubmit={handleSignupRequest} className="space-y-4">
-            <div>
-              <label className="block text-xs text-[#d3c5ac] uppercase tracking-wider font-semibold mb-2">Full Name</label>
-              <input type="text" required value={name} onChange={(e) => setName(e.target.value)} className="w-full bg-[#141b2c] border border-[#1e293b] rounded-lg px-4 py-3 text-sm text-white focus:border-[#fbbf24] focus:outline-none transition-colors" placeholder="John Doe" />
-            </div>
-            <div>
-              <label className="block text-xs text-[#d3c5ac] uppercase tracking-wider font-semibold mb-2">Clearance Email</label>
-              <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full bg-[#141b2c] border border-[#1e293b] rounded-lg px-4 py-3 text-sm text-white focus:border-[#fbbf24] focus:outline-none transition-colors" placeholder="agent@company.com" />
-            </div>
-            <div>
-              <label className="block text-xs text-[#d3c5ac] uppercase tracking-wider font-semibold mb-2">Secure Phone</label>
-              <input type="tel" required value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full bg-[#141b2c] border border-[#1e293b] rounded-lg px-4 py-3 text-sm text-white focus:border-[#fbbf24] focus:outline-none transition-colors" placeholder="+1 555-0123" />
-            </div>
-            <button type="submit" disabled={isLoading} className="w-full bg-[#fbbf24]/10 hover:bg-[#fbbf24]/20 border border-[#fbbf24]/50 text-[#fbbf24] py-3 rounded-lg font-bold transition-all shadow-[0_0_15px_rgba(251,191,36,0.1)]">
-              {isLoading ? 'Processing...' : 'Register Cryptographic Identity'}
-            </button>
-            <p className="text-center text-sm text-[#94a3b8] mt-4">
-              Already have clearance? <button type="button" onClick={() => setView('login')} className="text-[#45dfa4] hover:underline font-semibold">Login</button>
-            </p>
-          </form>
-        )}
+          <button 
+            type="submit" disabled={isProcessing}
+            className={`w-full bg-[#45dfa4] hover:bg-[#34c992] text-[#0f172a] font-bold py-3 rounded-lg transition-colors flex justify-center items-center gap-2 ${isProcessing ? 'opacity-70 cursor-not-allowed' : ''}`}
+          >
+            {isProcessing && <span className="material-symbols-outlined animate-spin text-sm">autorenew</span>}
+            {mode === 'login' ? 'Establish Secure Connection' : mode === 'signup' ? 'Request Clearance' : 'Reset Passphrase'}
+          </button>
+        </form>
 
-        {/* STATE 3: OTP VERIFICATION */}
-        {view === 'otp' && (
-          <form onSubmit={handleVerifyOtp} className="space-y-4">
-             <div className="bg-[#141b2c] border border-[#1e293b] p-4 rounded-lg mb-6">
-                <p className="text-sm text-[#d3c5ac] text-center mb-1">A 6-digit cryptographic token has been sent to</p>
-                <p className="text-white text-center font-semibold">{email}</p>
-             </div>
-            <div>
-              <label className="block text-xs text-[#d3c5ac] uppercase tracking-wider font-semibold mb-2">Enter Verification Token</label>
-              <input type="text" required maxLength="6" value={otp} onChange={(e) => setOtp(e.target.value)} className="w-full bg-[#141b2c] border border-[#1e293b] rounded-lg px-4 py-3 text-center text-2xl tracking-[0.5em] text-white focus:border-[#45dfa4] focus:outline-none transition-colors" placeholder="------" />
-            </div>
-            <button type="submit" disabled={isLoading} className="w-full bg-[#45dfa4] hover:bg-[#34d399] text-[#0c1324] py-3 rounded-lg font-bold transition-all shadow-[0_0_20px_rgba(69,223,164,0.3)]">
-              {isLoading ? 'Authenticating...' : 'Establish Secure Connection'}
-            </button>
-            <button type="button" onClick={() => setView('login')} className="w-full text-center text-sm text-[#94a3b8] hover:text-white mt-4 font-semibold">
-              Cancel Protocol
-            </button>
-          </form>
-        )}
-
+        <div className="mt-6 flex flex-col items-center gap-3 text-xs text-[#94a3b8]">
+          {mode === 'login' ? (
+            <>
+              <button type="button" onClick={() => { setMode('forgot'); setError(''); setMessage(''); }} className="hover:text-white transition-colors">Forgot Passphrase?</button>
+              <button type="button" onClick={() => { setMode('signup'); setError(''); setMessage(''); }} className="hover:text-[#45dfa4] transition-colors">Request new cryptographic identity</button>
+            </>
+          ) : (
+            <button type="button" onClick={() => { setMode('login'); setError(''); setMessage(''); }} className="hover:text-[#45dfa4] transition-colors">Return to active connection</button>
+          )}
+        </div>
       </div>
     </div>
   );
 };
 
-export default Auth;
+export default Login;
