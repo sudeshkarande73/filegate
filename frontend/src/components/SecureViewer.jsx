@@ -30,7 +30,7 @@ const SecureViewer = ({ url, fileType, fileName }) => {
         // ROUTE 1: Microsoft Word (.docx)
         if (fileType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
           const result = await mammoth.convertToHtml({ arrayBuffer });
-          setContent(<div className="bg-white text-black p-8 rounded-lg overflow-y-auto w-full h-full" dangerouslySetInnerHTML={{ __html: result.value }} />);
+          setContent(<div className="bg-white text-black p-8 rounded-lg overflow-y-auto w-full h-full relative z-40" dangerouslySetInnerHTML={{ __html: result.value }} />);
         } 
         
         // ROUTE 2: Spreadsheets (.xlsx, .csv)
@@ -39,7 +39,7 @@ const SecureViewer = ({ url, fileType, fileName }) => {
           const firstSheetName = workbook.SheetNames[0];
           const htmlString = XLSX.utils.sheet_to_html(workbook.Sheets[firstSheetName]);
           setContent(
-            <div className="bg-white text-black p-4 rounded-lg overflow-y-auto w-full h-full excel-viewer">
+            <div className="bg-white text-black p-4 rounded-lg overflow-y-auto w-full h-full excel-viewer relative z-40">
               <style>{`table { border-collapse: collapse; width: 100%; } th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }`}</style>
               <div dangerouslySetInnerHTML={{ __html: htmlString }} />
             </div>
@@ -56,7 +56,7 @@ const SecureViewer = ({ url, fileType, fileName }) => {
           if (fileName.endsWith('.html')) language = 'html';
 
           setContent(
-            <div className="w-full h-full overflow-y-auto rounded-lg bg-[#1e1e1e] text-left p-4">
+            <div className="w-full h-full overflow-y-auto rounded-lg bg-[#1e1e1e] text-left p-4 relative z-40">
               <SyntaxHighlighter language={language} style={vscDarkPlus} customStyle={{ margin: 0, padding: 0, background: 'transparent' }}>
                 {text}
               </SyntaxHighlighter>
@@ -101,7 +101,8 @@ const SecureViewer = ({ url, fileType, fileName }) => {
         <img 
           src={url} 
           alt="Secure Payload" 
-          className="max-w-full max-h-full object-contain pointer-events-none select-none shadow-2xl" 
+          // added relative and z-40
+          className="max-w-full max-h-full object-contain pointer-events-none select-none shadow-2xl relative z-40" 
           draggable="false"
         />
       </div>
@@ -117,7 +118,8 @@ const SecureViewer = ({ url, fileType, fileName }) => {
           controls 
           controlsList="nodownload" 
           disablePictureInPicture
-          className="max-w-full max-h-full shadow-2xl"
+          // added relative and z-40
+          className="max-w-full max-h-full shadow-2xl relative z-40"
         ></video>
       </div>
     );
@@ -127,17 +129,18 @@ const SecureViewer = ({ url, fileType, fileName }) => {
   if (fileType?.startsWith('audio/')) {
     return (
       <div className="w-full h-full flex flex-col items-center justify-center bg-[#0f172a] p-10">
-        <div className="w-24 h-24 rounded-full bg-[#141b2c] border border-[#1e293b] flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(69,223,164,0.1)]">
+        <div className="w-24 h-24 rounded-full bg-[#141b2c] border border-[#1e293b] flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(69,223,164,0.1)] relative z-40">
            <span className="material-symbols-outlined text-5xl text-[#45dfa4]">graphic_eq</span>
         </div>
-        <h3 className="text-white font-bold mb-2">{fileName}</h3>
-        <p className="text-[10px] text-[#45dfa4] font-mono tracking-widest uppercase mb-8">Encrypted Audio Stream</p>
+        <h3 className="text-white font-bold mb-2 relative z-40">{fileName}</h3>
+        <p className="text-[10px] text-[#45dfa4] font-mono tracking-widest uppercase mb-8 relative z-40">Encrypted Audio Stream</p>
         
         <audio 
           src={url} 
           controls 
           controlsList="nodownload" 
-          className="w-full max-w-md"
+          // added relative and z-40 to make controls clickable
+          className="w-full max-w-md relative z-40"
         ></audio>
       </div>
     );
@@ -146,7 +149,7 @@ const SecureViewer = ({ url, fileType, fileName }) => {
   // --- PURE JAVASCRIPT CANVAS RENDERING (PDFs) ---
   if (fileType === 'application/pdf') {
     return (
-      <div className="w-full h-full overflow-y-auto bg-[#0f172a] flex flex-col items-center py-8">
+      <div className="w-full h-full overflow-y-auto bg-[#0f172a] flex flex-col items-center py-8 relative z-40">
         <Document
           file={url}
           onLoadSuccess={({ numPages }) => setNumPages(numPages)}
@@ -170,7 +173,7 @@ const SecureViewer = ({ url, fileType, fileName }) => {
 
   // --- UNSUPPORTED FALLBACK ---
   return (
-    <div className="text-center p-10 text-white flex flex-col items-center justify-center h-full mt-20">
+    <div className="text-center p-10 text-white flex flex-col items-center justify-center h-full mt-20 relative z-40">
       <span className="material-symbols-outlined text-5xl text-[#ef4444] mb-4">gpp_bad</span>
       <p className="text-lg font-bold mb-2 text-[#ef4444]">Format Not Supported by Secure Sandbox</p>
       <p className="text-sm text-[#94a3b8] mb-6 max-w-md text-center">

@@ -89,7 +89,8 @@ const WatermarkOverlay = ({ user }) => {
 
   return (
     <div 
-      className="absolute inset-0 z-50 pointer-events-none select-none"
+      // added overflow-hidden to prevent rotated canvas from intercepting clicks
+      className="absolute inset-0 z-50 pointer-events-none select-none overflow-hidden"
       style={{
         backgroundImage: `url(${bgUrl})`,
         backgroundRepeat: 'repeat',

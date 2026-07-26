@@ -18,7 +18,7 @@ const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   
-  // 🚀 NEW: State to track password visibility
+  // State to track password visibility
   const [showPassword, setShowPassword] = useState(false); 
   
   const [error, setError] = useState('');
@@ -80,7 +80,7 @@ const Login = () => {
             <img src="/fg-logo.png" alt="FileGate Logo" className="w-full h-full object-contain" />
           </div>
           <h2 className="text-2xl font-bold text-white tracking-tight">FileGate Security</h2>
-          <p className="text-[10px] font-mono text-[#45dfa4] tracking-widest uppercase mt-1">Zero-Trust Authentication</p>
+          <p className="text-[10px] font-mono text-[#45dfa4] tracking-widest uppercase mt-1">Secure Login</p>
         </div>
 
         {error && <div className="bg-[#93000a]/30 border border-[#ffb4ab]/30 p-3 rounded text-[#ffb4ab] text-sm mb-4 text-center">{error}</div>}
@@ -96,19 +96,17 @@ const Login = () => {
           )}
           
           <input 
-            type="email" placeholder="Corporate Email Address" required 
+            type="email" placeholder="Email Address" required 
             value={email} onChange={(e) => setEmail(e.target.value)}
             className="w-full bg-[#141b2c] border border-[#1e293b] rounded-lg px-4 py-3 text-sm text-white focus:border-[#45dfa4] focus:outline-none" 
           />
           
           {mode !== 'forgot' && (
-            /* 🚀 UPDATED: Password field with visibility toggle */
             <div className="relative w-full">
               <input 
                 type={showPassword ? "text" : "password"} 
-                placeholder="Cryptographic Passphrase" required minLength="6"
+                placeholder="Password" required minLength="6"
                 value={password} onChange={(e) => setPassword(e.target.value)}
-                // Added pr-12 here so text doesn't overlap the icon
                 className="w-full bg-[#141b2c] border border-[#1e293b] rounded-lg px-4 py-3 pr-12 text-sm text-white focus:border-[#45dfa4] focus:outline-none transition-colors" 
               />
               <button
@@ -129,18 +127,24 @@ const Login = () => {
             className={`w-full bg-[#45dfa4] hover:bg-[#34c992] text-[#0f172a] font-bold py-3 rounded-lg transition-colors flex justify-center items-center gap-2 ${isProcessing ? 'opacity-70 cursor-not-allowed' : ''}`}
           >
             {isProcessing && <span className="material-symbols-outlined animate-spin text-sm">autorenew</span>}
-            {mode === 'login' ? 'Establish Secure Connection' : mode === 'signup' ? 'Request Clearance' : 'Reset Passphrase'}
+            {mode === 'login' ? 'Log In' : mode === 'signup' ? 'Sign Up' : 'Reset Password'}
           </button>
         </form>
 
         <div className="mt-6 flex flex-col items-center gap-3 text-xs text-[#94a3b8]">
           {mode === 'login' ? (
             <>
-              <button type="button" onClick={() => { setMode('forgot'); setError(''); setMessage(''); }} className="hover:text-white transition-colors">Forgot Passphrase?</button>
-              <button type="button" onClick={() => { setMode('signup'); setError(''); setMessage(''); }} className="hover:text-[#45dfa4] transition-colors">Request new cryptographic identity</button>
+              <button type="button" onClick={() => { setMode('forgot'); setError(''); setMessage(''); }} className="hover:text-white transition-colors">Forgot Password?</button>
+              <div className="flex items-center gap-1">
+                <span>Don't have an account?</span>
+                <button type="button" onClick={() => { setMode('signup'); setError(''); setMessage(''); }} className="text-[#45dfa4] hover:text-white transition-colors font-semibold">Sign Up</button>
+              </div>
             </>
           ) : (
-            <button type="button" onClick={() => { setMode('login'); setError(''); setMessage(''); }} className="hover:text-[#45dfa4] transition-colors">Return to active connection</button>
+            <div className="flex items-center gap-1">
+              <span>Already have an account?</span>
+              <button type="button" onClick={() => { setMode('login'); setError(''); setMessage(''); }} className="text-[#45dfa4] hover:text-white transition-colors font-semibold">Log In</button>
+            </div>
           )}
         </div>
       </div>
