@@ -18,6 +18,9 @@ const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   
+  // 🚀 NEW: State to track password visibility
+  const [showPassword, setShowPassword] = useState(false); 
+  
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -99,11 +102,26 @@ const Login = () => {
           />
           
           {mode !== 'forgot' && (
-            <input 
-              type="password" placeholder="Cryptographic Passphrase" required minLength="6"
-              value={password} onChange={(e) => setPassword(e.target.value)}
-              className="w-full bg-[#141b2c] border border-[#1e293b] rounded-lg px-4 py-3 text-sm text-white focus:border-[#45dfa4] focus:outline-none" 
-            />
+            /* 🚀 UPDATED: Password field with visibility toggle */
+            <div className="relative w-full">
+              <input 
+                type={showPassword ? "text" : "password"} 
+                placeholder="Cryptographic Passphrase" required minLength="6"
+                value={password} onChange={(e) => setPassword(e.target.value)}
+                // Added pr-12 here so text doesn't overlap the icon
+                className="w-full bg-[#141b2c] border border-[#1e293b] rounded-lg px-4 py-3 pr-12 text-sm text-white focus:border-[#45dfa4] focus:outline-none transition-colors" 
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#45dfa4] transition-colors focus:outline-none flex items-center justify-center"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                <span className="material-symbols-outlined select-none text-[20px]">
+                  {showPassword ? 'visibility_off' : 'visibility'}
+                </span>
+              </button>
+            </div>
           )}
 
           <button 

@@ -140,12 +140,26 @@ exports.removeUserAccess = async (req, res) => {
   try {
     const { id } = req.params;
     const { emailToRemove } = req.body;
-    const file = await File.findOne({ _id: id, owner: req.user.id });
-    if (!file) return res.status(404).json({ error: "File not found." });
-    file.allowedUsers = file.allowedUsers.filter(user => user.email !== emailToRemove);
-    await File.updateOne({ _id: id }, { $set: { allowedUsers: file.allowedUsers } });
+    
+    // 1. Sanitize the target email (forces lowercase, removes hidden spaces)
+    const targetEmail = emailToRemove.toLowerCase().trim();
+
+    // 2. ATOMIC $pull: Forces the database itself to hunt down the exact object and rip it out
+    const updatedFile = await File.findOneAndUpdate(
+      { _id: id, owner: req.user.id },
+      { $pull: { allowedUsers: { email: targetEmail } } },
+      { new: true }
+    );
+
+    if (!updatedFile) {
+        return res.status(404).json({ error: "File not found or unauthorized." });
+    }
+    
     res.status(200).json({ message: "Access revoked." });
-  } catch (error) { res.status(500).json({ error: "Failed to update ACL." }); }
+  } catch (error) { 
+    console.error("Revocation Error:", error);
+    res.status(500).json({ error: "Failed to update ACL." }); 
+  }
 };
 
 // 6. Targeted Grant (Add specific user)
@@ -153,12 +167,27 @@ exports.addUserAccess = async (req, res) => {
   try {
     const { id } = req.params;
     const { newEmail, accessLevel = 'read' } = req.body;
+    
+    // 1. Sanitize the incoming email
+    const targetEmail = newEmail.toLowerCase().trim();
+
+    // 2. Verify ownership
     const file = await File.findOne({ _id: id, owner: req.user.id });
     if (!file) return res.status(404).json({ error: "File not found." });
-    const exists = file.allowedUsers.some(u => u.email === newEmail);
+    
+    // 3. Block exact duplicates safely
+    const exists = file.allowedUsers.some(u => u.email === targetEmail);
     if (exists) return res.status(400).json({ error: "User already has clearance." });
-    file.allowedUsers.push({ email: newEmail, accessLevel });
-    await File.updateOne({ _id: id }, { $set: { allowedUsers: file.allowedUsers } });
+    
+    // 4. ATOMIC $push: Appends to the array securely at the database level (no overwriting)
+    await File.updateOne(
+      { _id: id }, 
+      { $push: { allowedUsers: { email: targetEmail, accessLevel } } }
+    );
+    
     res.status(200).json({ message: "Clearance granted." });
-  } catch (error) { res.status(500).json({ error: "Failed to expand ACL." }); }
+  } catch (error) { 
+    console.error("Grant Error:", error);
+    res.status(500).json({ error: "Failed to expand ACL." }); 
+  }
 };
