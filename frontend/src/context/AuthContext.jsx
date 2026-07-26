@@ -7,53 +7,44 @@ const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true); // App stays frozen while this is true
 
   useEffect(() => {
-    // 1. Check Backend first (for HTTP-only cookie persistence)
-    const verifyBackendSession = async () => {
-      try {
-        const response = await api.get('/auth/status');
-        setUser(response.data.user);
-      } catch (error) {
-        setUser(null);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    // 2. Firebase Observer
+    // Firebase is now the absolute source of truth
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         if (!firebaseUser.emailVerified) {
-          // Force logout from Firebase if email is not verified to prevent ghost sessions
           await signOut(auth);
-          return;
+          setUser(null);
+        } else {
+          try {
+            // Force backend to sync with Firebase
+            const idToken = await firebaseUser.getIdToken(true);
+            const response = await api.post('/auth/firebase-login', { idToken });
+            setUser(response.data.user);
+          } catch (err) {
+            console.error("Backend sync failed:", err);
+            await signOut(auth);
+            setUser(null);
+          }
         }
-        
-        // If Firebase is valid but backend user state is missing, sync them
-        if (!user) {
-           try {
-             const idToken = await firebaseUser.getIdToken(true);
-             const response = await api.post('/auth/firebase-login', { idToken });
-             setUser(response.data.user);
-           } catch (err) {
-             console.error("Backend sync failed:", err);
-             await signOut(auth);
-           }
-        }
+      } else {
+        setUser(null); // User is officially logged out
       }
+      
+      setIsLoading(false); // ONLY unfreeze the app after Firebase is finished
     });
 
-    verifyBackendSession();
     return () => unsubscribe();
-  }, [user]);
+  }, []);
 
   const logout = async () => {
     setIsLoading(true);
     try {
       await signOut(auth); // Clear Firebase
       await api.post('/auth/logout'); // Clear Backend Cookie
+    } catch (err) {
+      console.error("Logout error:", err);
     } finally {
       setUser(null);
       setIsLoading(false);

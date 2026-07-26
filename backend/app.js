@@ -24,6 +24,7 @@ app.use(compression());
 const allowedOrigins = [
   'http://localhost:5173', 
   'http://localhost:5174',
+  'https://filegate-delta.vercel.app',
   process.env.FRONTEND_URL // Reads your live Vercel URL during production!
 ].filter(Boolean); // Safely ignores FRONTEND_URL if it's undefined locally
 
