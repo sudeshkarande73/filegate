@@ -1,8 +1,6 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-// Remove: const admin = require('../config/firebaseAdmin');
-// Add these:
 require('../config/firebaseAdmin'); // This runs the initialization
 const { getAuth } = require('firebase-admin/auth'); // Modern modular auth
 
@@ -15,10 +13,6 @@ exports.firebaseLogin = async (req, res) => {
     }
 
     // 1. Verify the Firebase Token
-   // OLD WAY (Delete this):
-    // const decodedToken = await admin.auth().verifyIdToken(idToken);
-
-    // NEW WAY (Add this):
     const decodedToken = await getAuth().verifyIdToken(idToken);
     const { email, uid, email_verified } = decodedToken;
 
@@ -79,9 +73,29 @@ exports.logout = (req, res) => {
   res.status(200).json({ message: 'Disconnected.' });
 };
 
-// Required for Auto-Restore on Page Refresh
-exports.checkAuthStatus = (req, res) => {
-  res.status(200).json({ 
-    user: { id: req.user._id, email: req.user.email, name: req.user.name } 
-  });
+// 🚀 NECESSARY CHANGE: Renamed to `status` to match your routes, and added robust token decoding 
+// to fix the "Zombie Login" and 404 error on page refresh.
+exports.status = async (req, res) => {
+  try {
+    const token = req.cookies.token;
+    if (!token) return res.status(401).json({ isAuthenticated: false });
+    
+    // Decode the token directly here so it works even without middleware
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findById(decoded.id);
+    
+    if (!user) return res.status(401).json({ isAuthenticated: false });
+
+    // 🚀 Security Bonus: This checks if they logged in on another device and invalidates this one!
+    if (decoded.sessionToken && user.activeSessionToken !== decoded.sessionToken) {
+        return res.status(401).json({ isAuthenticated: false, error: 'Session invalidated by another login.' });
+    }
+    
+    res.status(200).json({ 
+      isAuthenticated: true, 
+      user: { id: user._id, email: user.email, name: user.name } 
+    });
+  } catch (err) {
+    res.status(401).json({ isAuthenticated: false });
+  }
 };

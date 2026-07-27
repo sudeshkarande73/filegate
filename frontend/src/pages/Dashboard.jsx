@@ -1,13 +1,17 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useAuth } from '../context/AuthContext';
+// 🚀 NEW: Import useNavigate to force the redirect ONLY after session destruction
+import { useNavigate } from 'react-router-dom'; 
 import api from '../utils/api';
 import SecureViewer from '../components/SecureViewer';
-import WatermarkOverlay from '../components/WatermarkOverlay'; // 🚀 NEW
+import WatermarkOverlay from '../components/WatermarkOverlay';
 import { encryptFileOnClient, decryptFileOnClient } from '../utils/cryptoHelper';
 
 const Dashboard = () => {
-  const { user, setUser } = useAuth();
+  // 🚀 CHANGED: Extracted 'logout' instead of 'setUser'
+  const { user, logout } = useAuth();
+  const navigate = useNavigate(); 
   
   // --- UI State ---
   const [isUploading, setIsUploading] = useState(false);
@@ -45,8 +49,16 @@ const Dashboard = () => {
     }
   };
 
+  // 🚀 FIXED: The Kill-Switch Sequence
   const handleLogout = async () => {
-    try { await api.post('/auth/logout'); } finally { setUser(null); }
+    try {
+      // 1. Wait for AuthContext to destroy Firebase tokens AND backend cookies
+      await logout(); 
+      // 2. Only navigate away after the destruction is mathematically confirmed
+      navigate('/login'); 
+    } catch (error) {
+      console.error("Disconnection sequence failed:", error);
+    }
   };
 
   const updatePolicy = (index, field, value) => {
@@ -163,7 +175,6 @@ const Dashboard = () => {
     }
   }, [policies, isBurnAfterReading, expiryHours, allowedCountries]);
 
-  // --- 🚀 UPGRADED: CLIENT-SIDE DECRYPTION PIPELINE ---
   const onReaderDrop = useCallback(async (acceptedFiles) => {
     setError(''); setSuccessMsg('');
     const file = acceptedFiles[0];
@@ -179,7 +190,7 @@ const Dashboard = () => {
       try {
         const vsfData = JSON.parse(e.target.result);
         
-        // 🚀 THE FIX: Appending Date.now() forces a brand new network request, completely bypassing the browser cache
+        // Appending Date.now() forces a brand new network request, completely bypassing the browser cache
         const response = await api.get(`/files/download/${vsfData.fileId}?cb=${Date.now()}`, { 
           responseType: 'arraybuffer' 
         });
@@ -439,7 +450,7 @@ const Dashboard = () => {
             {/* The invisible shield to stop standard selection */}
             <div className="absolute inset-0 z-10 select-none pointer-events-none" style={{ pointerEvents: securePayloadType === 'application/pdf' ? 'none' : 'auto' }}></div>
             
-            {/* 🚀 NEW: THE FORENSIC WATERMARK */}
+            {/* THE FORENSIC WATERMARK */}
             <WatermarkOverlay user={user} />
 
             {/* The Universal Offline Engine */}
